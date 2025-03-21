@@ -143,6 +143,9 @@ that match the given extension pattern.
     - `{{fileName}}`: My note, My note-1, My note-2
     - `{{imageNameKey}}`: foo, foo-1, foo-2
     - `{{imageNameKey}}-{{DATE:YYYYMMDD}}`: foo-20220408, foo-20220408-1, foo-20220408-2
+    - `/sources/images/{{fileName}}`: /sources/images/My note
+      - The image will be saved at the specified path, and directories will be created recursively if they do not exist.
+
 - **Duplicate number at start (or end)**
 
   If enabled, the duplicate number will be added at the start as prefix for the image name, otherwise, it will be added at the end as suffix for the image name.
