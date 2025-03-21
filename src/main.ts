@@ -149,55 +149,70 @@ export default class PasteImageRenamePlugin extends Plugin {
 
 	async renameFile(file: TFile, inputNewName: string, sourcePath: string, replaceCurrentLine?: boolean) {
 		// deduplicate name
-		const { name:newName } = await this.deduplicateNewName(inputNewName, file)
-		debugLog('deduplicated newName:', newName)
-		const originName = file.name
-
-		// generate linkText using Obsidian API, linkText is either  ![](filename.png) or ![[filename.png]] according to the "Use [[Wikilinks]]" setting.
-		const linkText = this.app.fileManager.generateMarkdownLink(file, sourcePath)
-
-		// file system operation: rename the file
-		const newPath = path.join(file.parent.path, newName)
+		const { name: newName } = await this.deduplicateNewName(inputNewName, file);
+		debugLog('deduplicated newName:', newName);
+		const originName = file.name;
+	
+		// Handle forward slashes in the path and create directories
+		const newPathParts = newName.split('/');
+		const newDir = newPathParts.slice(0, -1).join('/');
+		const newFileName = newPathParts[newPathParts.length - 1];
+	
+		if (newDir) {
+			try {
+				await this.app.vault.createFolder(newDir);
+			} catch (err) {
+				if (!err.message.includes("Folder already exists")) {
+					new Notice(`Failed to create directory ${newDir}: ${err}`);
+					throw err;
+				}
+			}
+		}
+	
+		const newPath = path.join(newDir, newFileName);
+	
+		// Generate linkText using Obsidian API
+		const linkText = this.app.fileManager.generateMarkdownLink(file, sourcePath);
+	
+		// File system operation: rename the file
 		try {
-			await this.app.fileManager.renameFile(file, newPath)
+			await this.app.fileManager.renameFile(file, newPath);
 		} catch (err) {
-			new Notice(`Failed to rename ${newName}: ${err}`)
-			throw err
+			new Notice(`Failed to rename ${newName}: ${err}`);
+			throw err;
 		}
-
+	
 		if (!replaceCurrentLine) {
-			return
+			return;
 		}
-
-		// in case fileManager.renameFile may not update the internal link in the active file,
-		// we manually replace the current line by manipulating the editor
-
-		const newLinkText = this.app.fileManager.generateMarkdownLink(file, sourcePath)
-		debugLog('replace text', linkText, newLinkText)
-
-		const editor = this.getActiveEditor()
+	
+		// Replace the current line in the editor
+		const newLinkText = this.app.fileManager.generateMarkdownLink(file, sourcePath);
+		debugLog('replace text', linkText, newLinkText);
+	
+		const editor = this.getActiveEditor();
 		if (!editor) {
-			new Notice(`Failed to rename ${newName}: no active editor`)
-			return
+			new Notice(`Failed to rename ${newName}: no active editor`);
+			return;
 		}
-
-		const cursor = editor.getCursor()
-		const line = editor.getLine(cursor.line)
-		const replacedLine = line.replace(linkText, newLinkText)
-		debugLog('current line -> replaced line', line, replacedLine)
-		// console.log('editor context', cursor, )
+	
+		const cursor = editor.getCursor();
+		const line = editor.getLine(cursor.line);
+		const replacedLine = line.replace(linkText, newLinkText);
+		debugLog('current line -> replaced line', line, replacedLine);
+	
 		editor.transaction({
 			changes: [
 				{
-					from: {...cursor, ch: 0},
-					to: {...cursor, ch: line.length},
+					from: { ...cursor, ch: 0 },
+					to: { ...cursor, ch: line.length },
 					text: replacedLine,
-				}
-			]
-		})
-
+				},
+			],
+		});
+	
 		if (!this.settings.disableRenameNotice) {
-			new Notice(`Renamed ${originName} to ${newName}`)
+			new Notice(`Renamed ${originName} to ${newName}`);
 		}
 	}
 
